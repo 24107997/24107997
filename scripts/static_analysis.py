@@ -5,22 +5,30 @@ import zipfile
 import requests
 import pefile
 
-THEZOO_NJRAT_URL = "https://github.com/ytisf/theZoo/raw/master/malware/Binaries/NJRat/NJRat.zip"
+# Link Raw chuẩn trực tiếp từ repository theZoo
+THEZOO_NJRAT_URL = "https://raw.githubusercontent.com/ytisf/theZoo/master/malware/Binaries/NJRat/NJRat.zip"
 
 def download_from_thezoo(url=THEZOO_NJRAT_URL):
     """Tải mẫu njRAT từ repository theZoo và giải nén bằng mật khẩu 'infected'"""
     print(f"[+] Đang tải mẫu njRAT từ theZoo...")
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    
     try:
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, headers=headers, timeout=30)
+        print(f"[+] HTTP Status Code: {response.status_code}")
+        
         if response.status_code == 200:
-            print("[+] Tải thành công! Đang giải nén mẫu trong bộ nhớ tạm...")
+            print("[+] Tải thành công! Đang giải nén mẫu trong bộ nhớ RAM...")
             with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
                 zf.extractall(path="/tmp/thezoo_njrat", pwd=b'infected')
                 
             for root, dirs, files in os.walk("/tmp/thezoo_njrat"):
                 for file in files:
-                    if file.endswith('.exe') or file.endswith('.bin') or '.' not in file:
-                        return os.path.join(root, file)
+                    full_path = os.path.join(root, file)
+                    print(f"[+] Tìm thấy file giải nén: {full_path}")
+                    return full_path
+        else:
+            print(f"[-] Không thể tải file, Mã phản hồi từ GitHub: {response.status_code}")
     except Exception as e:
         print(f"[-] Lỗi tải/giải nén từ theZoo: {e}")
     return None
