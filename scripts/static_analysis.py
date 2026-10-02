@@ -5,56 +5,43 @@ import zipfile
 import requests
 import pefile
 
-# SHA256 Hash của 1 mẫu njRAT thực tế trên MalwareBazaar
-DEFAULT_NJRAT_HASH = "4b2c1d9f8e7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c"
+THEZOO_NJRAT_URL = "https://github.com/ytisf/theZoo/raw/master/malware/Binaries/NJRat/NJRat.zip"
 
-def download_malware_from_bazaar(sha256_hash):
-    """Tải mẫu mã độc trực tiếp từ MalwareBazaar API vào bộ nhớ tạm"""
-    print(f"[+] Đang tải mẫu RAT từ MalwareBazaar (Hash: {sha256_hash[:10]}...)...")
-    url = "https://mb-api.abuse.ch/api/v1/"
-    data = {'query': 'get_file', 'sha256': sha256_hash}
-    
-    response = requests.post(url, data=data, timeout=30)
-    
-    if response.status_code == 200 and response.content[:2] == b'PK': # File ZIP
-        print("[+] Tải thành công! Đang giải nén trong bộ nhớ RAM...")
-        try:
+def download_from_thezoo(url=THEZOO_NJRAT_URL):
+    """Tải mẫu njRAT từ repository theZoo và giải nén bằng mật khẩu 'infected'"""
+    print(f"[+] Đang tải mẫu njRAT từ theZoo...")
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            print("[+] Tải thành công! Đang giải nén mẫu trong bộ nhớ tạm...")
             with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
-                # Mật khẩu giải nén chuẩn là 'infected'
-                zf.extractall(path="/tmp/malware_run", pwd=b'infected')
+                zf.extractall(path="/tmp/thezoo_njrat", pwd=b'infected')
                 
-            for root, dirs, files in os.walk("/tmp/malware_run"):
+            for root, dirs, files in os.walk("/tmp/thezoo_njrat"):
                 for file in files:
-                    return os.path.join(root, file)
-        except Exception as e:
-            print(f"[-] Lỗi giải nén: {e}")
-    else:
-        print("[-] Không tải được file từ MalwareBazaar (Có thể cần API Key hoặc hash bị gỡ).")
+                    if file.endswith('.exe') or file.endswith('.bin') or '.' not in file:
+                        return os.path.join(root, file)
+    except Exception as e:
+        print(f"[-] Lỗi tải/giải nén từ theZoo: {e}")
     return None
 
-def analyze_rat_static(file_path_or_hash):
-    print(f"=== PHÂN TÍCH TĨNH RAT TRÊN GITHUB ACTIONS ===")
-    
-    # Kiểm tra xem tham số là Hash hay là đường dẫn file
-    if len(file_path_or_hash) == 64 and not os.path.exists(file_path_or_hash):
-        target_exe = download_malware_from_bazaar(file_path_or_hash)
-    else:
-        target_exe = file_path_or_hash
+def analyze_rat_static():
+    print(f"=== PHÂN TÍCH TĨNH NJRAT TỪ THEZOO ===")
+    target_exe = download_from_thezoo()
 
     if not target_exe or not os.path.exists(target_exe):
-        print("[-] Không có file binary hợp lệ để phân tích.")
+        print("[-] Không lấy được file executable từ theZoo.")
         return
 
-    print(f"[+] Tiến hành phân tích cấu trúc PE file: {target_exe}")
+    print(f"[+] Phân tích binary: {target_exe}")
     try:
         pe = pefile.PE(target_exe)
     except Exception as e:
         print(f"[-] Lỗi đọc pefile: {e}")
         return
 
-    print(f"[+] ImpHash: {pe.get_imphash()}")
+    print(f"[+] ImpHash (Vân tay IAT): {pe.get_imphash()}")
     
-    # Danh sách các API nguy hiểm đặc trưng của RAT
     rat_apis = {
         'Kết nối C2 (Mạng)': ['WSAStartup', 'socket', 'connect', 'send', 'recv', 'InternetOpenA'],
         'Keylogger (Theo dõi phím)': ['GetAsyncKeyState', 'GetKeyState', 'SetWindowsHookExA', 'SetWindowsHookExW'],
@@ -73,9 +60,7 @@ def analyze_rat_static(file_path_or_hash):
                         func_name = imp.name.decode('utf-8', errors='ignore')
                         for category, apis in rat_apis.items():
                             if func_name in apis:
-                                print(f"[!] DẤU HIỆU RAT [{category}]: Called {func_name} ({dll_name})")
+                                print(f"[!] DẤU HIỆU RAT [{category}]: Gọi hàm {func_name} ({dll_name})")
 
 if __name__ == "__main__":
-    # Nhận Hash từ tham số hoặc dùng Hash mẫu njRAT
-    input_val = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_NJRAT_HASH
-    analyze_rat_static(input_val)
+    analyze_rat_static()
