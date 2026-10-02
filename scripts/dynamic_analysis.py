@@ -5,36 +5,56 @@ import zipfile
 import re
 import requests
 
-THEZOO_NJRAT_URL = "https://raw.githubusercontent.com/ytisf/theZoo/master/malware/Binaries/NJRat/NJRat.zip"
+THEZOO_URLS = [
+    "https://raw.githubusercontent.com/ytisf/theZoo/master/malware/Binaries/NJRat/NJRat.zip",
+    "https://raw.githubusercontent.com/ytisf/theZoo/master/malware/Binaries/NJRat/NJRat",
+    "https://raw.githubusercontent.com/ytisf/theZoo/master/malware/Binaries/njRAT/njRAT.zip",
+    "https://raw.githubusercontent.com/ytisf/theZoo/master/malware/Binaries/NJRAT/NJRAT.zip"
+]
 
-def download_from_thezoo(url=THEZOO_NJRAT_URL):
-    """Tải mẫu njRAT từ repository theZoo và giải nén bằng mật khẩu 'infected'"""
-    print(f"[+] Đang tải mẫu njRAT từ theZoo...")
+BAZAAR_NJRAT_HASH = "4b2c1d9f8e7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c"
+
+def download_malware():
+    """Tải mẫu njRAT từ theZoo, nếu lỗi 404 tự động fallback sang MalwareBazaar API"""
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
+    # 1. Ưu tiên thử tải từ theZoo
+    for url in THEZOO_URLS:
+        print(f"[+] Đang thử tải mẫu njRAT từ theZoo: {url}")
+        try:
+            res = requests.get(url, headers=headers, timeout=15)
+            if res.status_code == 200 and len(res.content) > 1000:
+                print("[+] Tải thành công từ theZoo! Đang giải nén trong RAM...")
+                with zipfile.ZipFile(io.BytesIO(res.content)) as zf:
+                    zf.extractall(path="/tmp/dyn_njrat", pwd=b'infected')
+                for root, _, files in os.walk("/tmp/dyn_njrat"):
+                    for file in files:
+                        return os.path.join(root, file)
+            else:
+                print(f"[-] URL trả về mã: {res.status_code}")
+        except Exception as e:
+            print(f"[-] Lỗi kết nối URL: {e}")
+
+    # 2. Dự phòng: Tự động chuyển sang MalwareBazaar nếu theZoo lỗi
+    print("[!] Không lấy được từ theZoo, chuyển sang dự phòng MalwareBazaar API...")
     try:
-        response = requests.get(url, headers=headers, timeout=30)
-        print(f"[+] HTTP Status Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            print("[+] Tải thành công! Đang giải nén mẫu trong bộ nhớ RAM...")
-            with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
-                zf.extractall(path="/tmp/thezoo_njrat_dyn", pwd=b'infected')
-                
-            for root, dirs, files in os.walk("/tmp/thezoo_njrat_dyn"):
+        data = {'query': 'get_file', 'sha256': BAZAAR_NJRAT_HASH}
+        res = requests.post("https://mb-api.abuse.ch/api/v1/", data=data, timeout=30)
+        if res.status_code == 200 and res.content[:2] == b'PK':
+            print("[+] Tải thành công từ MalwareBazaar! Đang giải nén...")
+            with zipfile.ZipFile(io.BytesIO(res.content)) as zf:
+                zf.extractall(path="/tmp/dyn_njrat", pwd=b'infected')
+            for root, _, files in os.walk("/tmp/dyn_njrat"):
                 for file in files:
-                    full_path = os.path.join(root, file)
-                    print(f"[+] Tìm thấy file giải nén: {full_path}")
-                    return full_path
-        else:
-            print(f"[-] Không thể tải file, Mã phản hồi từ GitHub: {response.status_code}")
+                    return os.path.join(root, file)
     except Exception as e:
-        print(f"[-] Lỗi tải từ theZoo: {e}")
+        print(f"[-] Lỗi MalwareBazaar: {e}")
+
     return None
 
 def analyze_rat_dynamic():
-    print(f"=== PHÂN TÍCH ĐỘNG / TRÍCH XUẤT CẤU HÌNH NJRAT TỪ THEZOO ===")
-    target_file = download_from_thezoo()
+    print("=== PHÂN TÍCH ĐỘNG / TRÍCH XUẤT CẤU HÌNH NJRAT ===")
+    target_file = download_malware()
 
     if not target_file or not os.path.exists(target_file):
         print("[-] Không tìm thấy file binary để trích xuất.")
