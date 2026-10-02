@@ -12,9 +12,12 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+        
     - name: Install Dependencies
       run: pip install -r requirements.txt
+      
     - name: Run Static Analysis
-      run: python scripts/static_analysis.py samples/sample_rat.exe
+      run: python scripts/static_analysis.py
+      
     - name: Run Dynamic Analysis
-      run: python scripts/dynamic_analysis.py samples/sample_rat.exe
+      run: python scripts/dynamic_analysis.py
